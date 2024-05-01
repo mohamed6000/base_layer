@@ -204,6 +204,10 @@ static void panic(void);
 #define Glue_(a, b) a##b
 #define Glue(a, b) Glue_(a, b)
 
+#ifndef DEFAULT_MEMORY_ALIGNMENT
+#define DEFAULT_MEMORY_ALIGNMENT (2 * size_of(void *))
+#endif
+
 
 constexpr s8 MIN_S8 = 0x80; // -128
 constexpr s8 MAX_S8 = 0x7f; // 127
@@ -274,12 +278,19 @@ enum AllocatorMode
 };
 
 typedef void *(*Allocator)(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options);
+#define ALLOCATOR_PROC(name) void *name(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options)
 
 static void *default_allocator(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options);
+
+static FORCE_INLINE bool is_power_of_two(u64 x);
+static FORCE_INLINE u64 align_size(u64 size, u64 alignment);
+static FORCE_INLINE u64 align_forward(void *ptr, u64 alignment);
+
 
 #define alloc(Type) (Type *)default_allocator(ALLOCATOR_ALLOCATE, sizeof(Type), 0, null, null, 0)
 #define alloc_array(Type, count) (Type *)default_allocator(ALLOCATOR_ALLOCATE, sizeof(Type) * (count), 0, null, null, 0)
 #define alloc_free(memory) (void)default_allocator(ALLOCATOR_FREE, 0, 0, memory, null, 0)
+
 
 
 // implementation
@@ -322,6 +333,7 @@ static char *operating_system_to_string(OperatingSystem os)
         case OPERATING_SYSTEM_WINDOWS: return "Windows";
         case OPERATING_SYSTEM_LINUX:   return "Linux";
         case OPERATING_SYSTEM_MAC:     return "Mac";
+        default: break;
     }
 
     return result;
@@ -336,6 +348,7 @@ static char *architecture_to_string(Architecture arch)
         case ARCHITECTURE_X86:   return "X86";
         case ARCHITECTURE_ARM:   return "Arm";
         case ARCHITECTURE_ARM64: return "Arm64";
+        default: break;
     }
 
     return result;
@@ -395,4 +408,31 @@ static void *default_allocator(AllocatorMode mode, s64 size, s64 old_size, void 
 static void panic(void)
 {
     abort();
+}
+
+static FORCE_INLINE bool is_power_of_two(u64 x)
+{
+    return (x & (x-1)) == 0;
+}
+
+static FORCE_INLINE u64 align_size(u64 size, u64 alignment)
+{
+    u64 result = size + alignment - 1;
+    return result - (result % alignment);
+}
+
+static FORCE_INLINE u64 align_forward(void *ptr, u64 alignment)
+{
+    Assert(is_power_of_two(alignment));
+
+    u64 p = (u64)ptr;
+    // p % alignment
+    u64 modulo = p & (alignment - 1);
+
+    if (modulo != 0)
+    {
+        // if the address isn't aligned, seek the next aligned value
+        p += alignment - modulo;
+    }
+    return p;
 }
