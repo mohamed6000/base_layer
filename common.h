@@ -140,6 +140,8 @@ typedef double f64;
 #define GB(x) ((x) << 30)
 #define TB(x) ((x) << 40)
 
+#define UNUSED(x) ((void)(x))
+
 #define ArraySize(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #if OS_WINDOWS
@@ -162,14 +164,14 @@ typedef double f64;
     #endif
 #endif
 
-// define your custom logger, the default logger is fprintf
+// define your custom logger
 #ifndef Log
-#define Log(message, ...) fprintf(stdout, message, ##__VA_ARGS__)
+#define Log(message, ...)
 #endif
 
-// define your custom assert logger, the default assert logger is fprintf
+// define your custom assert logger
 #ifndef LogAssert
-#define LogAssert(message, ...) fprintf(stderr, message, ##__VA_ARGS__)
+#define LogAssert(message, ...)
 #endif
 
 #if ENABLE_ASSERT
@@ -233,11 +235,6 @@ constexpr f64 F64_MIN  = 2.2250738585072014e-308;
 constexpr f64 F64_MAX = 1.7976931348623157e+308;
 
 
-typedef struct Newstring {
-    u64 count;
-    char *data;
-} Newstring;
-
 enum OperatingSystem
 {
     OPERATING_SYSTEM_NULL,
@@ -281,10 +278,6 @@ typedef void *(*Allocator)(AllocatorMode mode, s64 size, s64 old_size, void *old
 #define ALLOCATOR_PROC(name) void *name(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options)
 
 static void *default_allocator(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options);
-
-static FORCE_INLINE bool is_power_of_two(u64 x);
-static FORCE_INLINE u64 align_size(u64 size, u64 alignment);
-static FORCE_INLINE u64 align_forward(void *ptr, u64 alignment);
 
 
 #define alloc(Type) (Type *)default_allocator(ALLOCATOR_ALLOCATE, sizeof(Type), 0, null, null, 0)
