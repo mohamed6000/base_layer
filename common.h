@@ -142,7 +142,7 @@ typedef double f64;
 
 #define UNUSED(x) ((void)(x))
 
-#define ArraySize(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define array_size(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #if OS_WINDOWS
 #if COMPILER_GCC
@@ -165,46 +165,46 @@ typedef double f64;
 #endif
 
 // define your custom logger
-#ifndef Log
-#define Log(message, ...)
+#ifndef log
+#define log(message, ...)
 #endif
 
 // define your custom assert logger
-#ifndef LogAssert
-#define LogAssert(message, ...)
+#ifndef log_error
+#define log_error(message, ...)
 #endif
 
-#if ENABLE_ASSERT
-#define Assert(exp)\
+#if ENABLE_ASSERTS
+#define assert(exp)\
 do { \
     if (!(exp)) \
     { \
-        LogAssert("Assertion failed: %s at %s:%d\n", #exp, __FILE__, __LINE__); \
+        log_error("Assertion failed: %s at %s:%d\n", #exp, __FILE__, __LINE__); \
         DEBUG_BREAK(); \
     } \
 } while (0)
 #else
-#define Assert(exp)
+#define assert(exp)
 #endif
 
 static void panic(void);
 
 #define STR_FMT "%.*s"
 
-#define Min(a, b) (((a) < (b)) ? (a) : (b))
-#define Max(a, b) (((a) > (b)) ? (a) : (b))
-#define Clamp(x, a, b) (((x) < (a)) ? (a) : ((x) > (b)) ? (b) : (x))
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#define clamp(x, a, b) (((x) < (a)) ? (a) : ((x) > (b)) ? (b) : (x))
 
-#define PointerToInt(ptr) (u64)((u8 *)ptr - (u8 *)0)
+#define pointer_to_int(ptr) (u64)((u8 *)(ptr) - (u8 *)0)
 
-#define Member(Type, m) (((Type *)0)->m)
-#define OffsetOf(Type, m) PointerToInt(&Member(Type, m))
+#define member_of(Type, m) (((Type *)0)->m)
+#define offset_of(Type, m) pointer_to_int(&member_of(Type, m))
 
-#define Stringify_(str) #str
-#define Stringify(str) Stringify_(str)
+#define stringify_(str) #str
+#define stringify(str) stringify_(str)
 
-#define Glue_(a, b) a##b
-#define Glue(a, b) Glue_(a, b)
+#define glue_(a, b) a##b
+#define glue(a, b) glue_(a, b)
 
 #ifndef DEFAULT_MEMORY_ALIGNMENT
 #define DEFAULT_MEMORY_ALIGNMENT (2 * size_of(void *))
@@ -274,13 +274,20 @@ enum AllocatorMode
     ALLOCATOR_FREE_ALL
 };
 
-typedef void *(*Allocator)(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options);
+typedef void *(*AllocatorProc)(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options);
 #define ALLOCATOR_PROC(name) void *name(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options)
 
-static void *default_allocator(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options);
+struct Allocator
+{
+    AllocatorProc proc;
+    void *data;
+};
+
+static ALLOCATOR_PROC(default_allocator);
 
 
-#define alloc(Type) (Type *)default_allocator(ALLOCATOR_ALLOCATE, sizeof(Type), 0, null, null, 0)
+#define alloc_size(size) default_allocator(ALLOCATOR_ALLOCATE, size, 0, null, null, 0);
+#define alloc_struct(Type) (Type *)default_allocator(ALLOCATOR_ALLOCATE, sizeof(Type), 0, null, null, 0)
 #define alloc_array(Type, count) (Type *)default_allocator(ALLOCATOR_ALLOCATE, sizeof(Type) * (count), 0, null, null, 0)
 #define alloc_free(memory) (void)default_allocator(ALLOCATOR_FREE, 0, 0, memory, null, 0)
 
@@ -323,9 +330,21 @@ static char *operating_system_to_string(OperatingSystem os)
     char *result = "(null)";
     switch (os)
     {
-        case OPERATING_SYSTEM_WINDOWS: return "Windows";
-        case OPERATING_SYSTEM_LINUX:   return "Linux";
-        case OPERATING_SYSTEM_MAC:     return "Mac";
+        case OPERATING_SYSTEM_WINDOWS:
+        {
+            result = "Windows";
+        } break;
+
+        case OPERATING_SYSTEM_LINUX:
+        {   
+            result = "Linux";
+        } break;
+
+        case OPERATING_SYSTEM_MAC:
+        {
+             result = "Mac";
+        } break;
+
         default: break;
     }
 
@@ -337,10 +356,26 @@ static char *architecture_to_string(Architecture arch)
     char *result = "(null)";
     switch (arch)
     {
-        case ARCHITECTURE_X64:   return "X64";
-        case ARCHITECTURE_X86:   return "X86";
-        case ARCHITECTURE_ARM:   return "Arm";
-        case ARCHITECTURE_ARM64: return "Arm64";
+        case ARCHITECTURE_X64:
+        {
+            result = "x64";
+        } break;
+        
+        case ARCHITECTURE_X86:
+        {
+            result = "x86";
+        } break;
+        
+        case ARCHITECTURE_ARM:
+        {
+            result = "arm";
+        } break;
+        
+        case ARCHITECTURE_ARM64:
+        {
+            result = "arm64";
+        } break;
+        
         default: break;
     }
 
@@ -351,7 +386,7 @@ static char *architecture_to_string(Architecture arch)
 #include <stdlib.h>
 #include <string.h>
 
-static void *default_allocator(AllocatorMode mode, s64 size, s64 old_size, void *old_memory, void *allocator_data, s64 options)
+static ALLOCATOR_PROC(default_allocator)
 {
     switch (mode)
     {
@@ -385,14 +420,16 @@ static void *default_allocator(AllocatorMode mode, s64 size, s64 old_size, void 
             // use Windows heaps or else an off-the-shelf malloc that gives us control.
 
             // @incomplete: Panic.
-            Assert(false);
+            assert(false);
+            panic();
             return null;
         } break;
 
         default:
         {
             // @incomplete: Panic.
-            Assert(false);
+            assert(false);
+            panic();
             return null;
         } break;
     }
@@ -403,12 +440,12 @@ static void panic(void)
     abort();
 }
 
-static FORCE_INLINE bool is_power_of_two(u64 x)
+static inline bool is_power_of_two(u64 x)
 {
     return (x & (x-1)) == 0;
 }
 
-static FORCE_INLINE u64 align_size(u64 size, u64 alignment)
+static inline u64 align_size(u64 size, u64 alignment)
 {
     u64 result = size + alignment - 1;
     return result - (result % alignment);
@@ -416,7 +453,7 @@ static FORCE_INLINE u64 align_size(u64 size, u64 alignment)
 
 static FORCE_INLINE u64 align_forward(void *ptr, u64 alignment)
 {
-    Assert(is_power_of_two(alignment));
+    assert(is_power_of_two(alignment));
 
     u64 p = (u64)ptr;
     // p % alignment
