@@ -169,7 +169,7 @@ typedef double f64;
 #define log(message, ...)
 #endif
 
-// define your custom assert logger
+// define your custom error logger
 #ifndef log_error
 #define log_error(message, ...)
 #endif
